@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Net;
 using System.IO;
+using System.Net;
 using System.Text;
 
-namespace NeoSmart.PayPalNvp
+namespace PayPalNvp
 {
     public class PayPal
     {
-        public double NvpVersion = 88.0;
+        public double NvpVersion = 124.0;
+
         public EndPoint EndPoint { get; set; }
 
         private string NvpEndPoint
@@ -38,20 +39,20 @@ namespace NeoSmart.PayPalNvp
         {
         }
 
-        private string EncodeNvpString(Dictionary<string, string> fields)
+        public static string EncodeNvpString(Dictionary<string, string> fields)
         {
             var sb = new StringBuilder();
 
             foreach (var kv in fields)
             {
                 string encodedValue = string.IsNullOrEmpty(kv.Value) ? string.Empty : Uri.EscapeUriString(kv.Value);
-                sb.AppendFormat("{0}={1}&", Uri.EscapeUriString(kv.Key.ToUpper()), encodedValue);
+                sb.AppendFormat("&{0}={1}", Uri.EscapeUriString(kv.Key.ToUpper()), encodedValue);
             }
 
             return sb.ToString();
         }
 
-        private Dictionary<string, string> DecodeNvpString(string nvpstr)
+        public static Dictionary<string, string> DecodeNvpString(string nvpstr)
         {
             var nvpMap = new Dictionary<string, string>();
 
@@ -60,7 +61,9 @@ namespace NeoSmart.PayPalNvp
             {
                 string[] halves = pair.Split('=');
 
-                nvpMap[Uri.UnescapeDataString(halves[0])] = halves.Length == 2 ? Uri.UnescapeDataString(halves[1]) : string.Empty;
+                nvpMap[Uri.UnescapeDataString(halves[0])] = halves.Length == 2
+                    ? Uri.UnescapeDataString(halves[1])
+                    : string.Empty;
             }
 
             return nvpMap;
@@ -75,11 +78,19 @@ namespace NeoSmart.PayPalNvp
             fields["VERSION"] = NvpVersion.ToString();
             fields["METHOD"] = method;
 
+            var nvpstr = GetResponseStr(fields);
+
+            return DecodeNvpString(nvpstr);
+        }
+
+        public string GetResponseStr(Dictionary<string, string> fields)
+        {
             string nvpstr = EncodeNvpString(fields);
 
             //Send the POST request to PayPal
-            var request = (HttpWebRequest)WebRequest.Create(NvpEndPoint);
-            request.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
+            var request = (HttpWebRequest) WebRequest.Create(NvpEndPoint);
+            request.CachePolicy =
+                new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
             request.ContentLength = nvpstr.Length;
@@ -94,8 +105,7 @@ namespace NeoSmart.PayPalNvp
             {
                 nvpstr = reader.ReadToEnd();
             }
-
-            return DecodeNvpString(nvpstr);
+            return nvpstr;
         }
 
         //Start of PayPal convenience methods
@@ -116,7 +126,7 @@ namespace NeoSmart.PayPalNvp
             string method = "DoExpressCheckoutPayment";
             return GenericNvp(method, fields);
         }
-        
+
         public Dictionary<string, string> RefundTransaction(Dictionary<string, string> fields)
         {
             string method = "RefundTransaction";
@@ -147,6 +157,12 @@ namespace NeoSmart.PayPalNvp
             return GenericNvp(method, fields);
         }
 
+        public Dictionary<string, string> GetPalDetails(Dictionary<string, string> fields)
+        {
+            string method = "GetPalDetails";
+            return GenericNvp(method, fields);
+        }
+
         public bool WasSuccessful(Dictionary<string, string> response)
         {
             string unused1, unused2;
@@ -166,7 +182,8 @@ namespace NeoSmart.PayPalNvp
             if (response.TryGetValue("ACK", out ack))
             {
                 result = string.Compare(response["ACK"], "success", StringComparison.CurrentCultureIgnoreCase) == 0 ||
-                       string.Compare(response["ACK"], "successWithWarning", StringComparison.CurrentCultureIgnoreCase) == 0;
+                         string.Compare(response["ACK"], "successWithWarning", StringComparison.CurrentCultureIgnoreCase) ==
+                         0;
             }
 
             response.TryGetValue("L_SHORTMESSAGE0", out shortError);
